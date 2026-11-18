@@ -4,6 +4,8 @@ Spektrofotometre ile alınan renk ölçümlerini ve reçeteleri **10 kullanıcı
 
 > Renk ölçüm yazılımı ve cihaz bu projede **simüledir** (dummy). Cihaz 360–740 nm arasında 10 nm aralıklarla **39 noktalık % yansıma** verisi üretir. Gerçek sisteme geçerken yalnızca `renkolcum/spectro.py` içindeki sürücü katmanı değişir.
 
+![Web portalı (demo modu)](docs/portal.png)
+
 ## Mimari
 
 ```mermaid
