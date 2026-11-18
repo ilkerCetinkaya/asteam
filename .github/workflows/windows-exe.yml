@@ -1,0 +1,35 @@
+# Windows için Python gerektirmeyen .exe dosyalarını derler (ücretsiz GitHub Actions).
+# Çıktı: Actions → bu iş → Artifacts → "RenkOlcum-Windows" (zip)
+name: Windows exe
+on:
+  push:
+    paths: ["renkolcum/**", "windows/**", "pyproject.toml", ".github/workflows/windows-exe.yml"]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[mdb,test]" pyinstaller
+      - name: Testler (bulut gerektirmeyenler)
+        run: pytest -q tests/test_colorimetry.py tests/test_spectro_recipe.py tests/test_mdb_bridge.py -k "discover or extract or fraction"
+      - name: Derle
+        run: |
+          pyinstaller --onefile --name renkolcum --collect-all access_parser windows/renkolcum_main.py
+          pyinstaller --onefile --noconsole --name renkolcum-kopru --collect-all access_parser windows/kopru_main.py
+      - name: Exe duman testi
+        shell: pwsh
+        run: |
+          .\dist\renkolcum.exe --version
+          .\dist\renkolcum.exe mdb-kesfet tests\mdb\genis_v1.mdb --yaz dist\esleme.ornek.json --okuyucu parser
+          if (-not (Test-Path dist\esleme.ornek.json)) { throw "eşleme üretilemedi" }
+      - name: Paketle
+        shell: pwsh
+        run: Copy-Item windows\kur.ps1, windows\KURULUM.txt dist\
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RenkOlcum-Windows
+          path: dist/

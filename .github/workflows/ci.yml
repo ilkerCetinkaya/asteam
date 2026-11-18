@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[test]" "psycopg[binary]"
+      - run: pip install -e ".[test,mdb]" "psycopg[binary]"
       - name: Testler (kolorimetri, reçete, RLS + uçtan uca bulut)
         run: pytest -q
       - name: SQL şeması + RLS testleri

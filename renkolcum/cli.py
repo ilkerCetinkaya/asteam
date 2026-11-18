@@ -271,6 +271,91 @@ def cmd_standart_ekle(a) -> None:
     print(f"Standart eklendi: {row['name']} ({row['id'][:8]})")
 
 
+def _setup_logging(verbose: bool = True) -> None:
+    import logging
+    from logging.handlers import RotatingFileHandler
+    root = logging.getLogger("renkolcum")
+    if root.handlers:
+        return
+    root.setLevel(logging.INFO)
+    fh = RotatingFileHandler(config.home() / "kopru.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8")
+    fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    root.addHandler(fh)
+    if verbose and sys.stdout is not None:
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(logging.Formatter("%(asctime)s  %(message)s", "%H:%M:%S"))
+        root.addHandler(sh)
+
+
+def cmd_mdb_kesfet(a) -> None:
+    import json
+    from .mdb_bridge import discover, open_reader
+    reader = open_reader(Path(a.dosya), a.okuyucu, a.sifre)
+    try:
+        mapping, report = discover(reader)
+    finally:
+        reader.close()
+    print(f"Dosya: {a.dosya}")
+    for t in report:
+        if "hata" in t:
+            print(f"\n▸ {t['tablo']}: okunamadı ({t['hata']})")
+            continue
+        print(f"\n▸ Tablo {t['tablo']}  ({t['satir']} satır, {len(t['kolonlar'])} kolon)")
+        cols = t["kolonlar"]
+        print("  Kolonlar: " + ", ".join(cols[:25]) + (f" … (+{len(cols) - 25})" if len(cols) > 25 else ""))
+        if t["ornek"]:
+            ex = list(t["ornek"].items())[:12]
+            print("  Örnek  : " + "; ".join(f"{k}={v}" for k, v in ex))
+    if mapping is None:
+        print("\n✖ Spektral veri otomatik bulunamadı. esleme.json dosyasını elle hazırlayın (README → .mdb köprüsü).")
+        return
+    print(f"\n✔ Önerilen eşleme: tablo={mapping.tablo}, anahtar={mapping.anahtar}, spektrum={mapping.spektrum['tip']}, ölçek={mapping.olcek}")
+    for k, v in mapping.alanlar.items():
+        print(f"    {k:14} ← {v}")
+    if a.yaz:
+        mapping.kaynak = a.kaynak or ""
+        Path(a.yaz).write_text(json.dumps(mapping.dump(), indent=2, ensure_ascii=False), "utf-8")
+        print(f"Eşleme dosyası yazıldı: {a.yaz}  (kontrol edip gerekirse düzenleyin)")
+
+
+def cmd_mdb_izle(a) -> None:
+    from .mdb_bridge import Mapping, MdbBridge
+    _setup_logging(not a.sessiz)
+    import logging
+    log = logging.getLogger("renkolcum.kopru")
+    svc = build_service()
+    mapping = Mapping.load(Path(a.esleme))
+    std_cache: dict = {}
+
+    def lookup(name: str):
+        if name not in std_cache:
+            std_cache[name] = svc.find_standard(name)
+        return std_cache[name]
+
+    bridge = MdbBridge(Path(a.klasor), mapping, svc.store, standards_lookup=lookup, reader_kind=a.okuyucu,
+                       password=a.sifre, stable_seconds=0 if a.tek_sefer else a.bekle, pattern=a.desen)
+    log.info("Köprü başladı: klasör=%s eşleme=%s bulut=%s", Path(a.klasor).resolve(), a.esleme,
+             "bağlı" if svc.cloud_ready() else "YOK (kayıtlar kuyrukta bekleyecek)")
+    last_sync = 0.0
+    try:
+        while True:
+            results = bridge.scan_once()
+            changed = any(r.get("yeni") or r.get("guncellenen") for r in results)
+            if svc.cloud_ready() and (changed or svc.store.pending()) and (changed or time.time() - last_sync > 60):
+                try:
+                    r = svc.sync()
+                    last_sync = time.time()
+                    if r["gonderilen"] or r["hata"]:
+                        log.info("Bulut: gönderilen=%d hata=%d bekleyen=%d", r["gonderilen"], r["hata"], r["bekleyen"])
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Senkron hatası (sonra tekrar denenecek): %s", e)
+            if a.tek_sefer:
+                break
+            time.sleep(a.aralik)
+    except KeyboardInterrupt:
+        log.info("Köprü durduruldu.")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="renkolcum", description="Renk Ölçüm Sistemi (dummy) + Supabase bulut senkronu")
     ap.add_argument("--version", action="version", version=__version__)
@@ -314,6 +399,21 @@ def main(argv: list[str] | None = None) -> None:
     p = sp.add_parser("standart-ekle", help="Bir ölçümü renk standardı yap")
     p.add_argument("olcum"); p.add_argument("--ad", required=True); p.add_argument("--musteri")
     p.add_argument("--tolerans", type=float, default=1.0); p.set_defaults(fn=cmd_standart_ekle)
+
+    p = sp.add_parser("mdb-kesfet", help="Uygulamanın .mdb dosyasını incele, eşleme önerisi üret")
+    p.add_argument("dosya"); p.add_argument("--yaz", metavar="esleme.json", help="Önerilen eşlemeyi dosyaya yaz")
+    p.add_argument("--kaynak", help="Bu bilgisayar/lab için kısa ad (ör. LAB1)")
+    p.add_argument("--okuyucu", choices=["auto", "odbc", "parser"], default="auto")
+    p.add_argument("--sifre", help=".mdb dosyası şifreliyse"); p.set_defaults(fn=cmd_mdb_kesfet)
+
+    p = sp.add_parser("mdb-izle", help="Uygulamanın .mdb klasörünü izle, yeni ölçümleri buluta gönder (köprü)")
+    p.add_argument("klasor"); p.add_argument("--esleme", required=True, help="esleme.json")
+    p.add_argument("--desen", default="*.mdb", help="Dosya deseni (varsayılan *.mdb)")
+    p.add_argument("--okuyucu", choices=["auto", "odbc", "parser"], default="auto")
+    p.add_argument("--sifre"); p.add_argument("--aralik", type=float, default=5.0, help="Tarama aralığı (sn)")
+    p.add_argument("--bekle", type=float, default=3.0, help="Dosya yazımı bitti saymak için bekleme (sn)")
+    p.add_argument("--tek-sefer", action="store_true"); p.add_argument("--sessiz", action="store_true")
+    p.set_defaults(fn=cmd_mdb_izle)
 
     a = ap.parse_args(argv)
     a.fn(a)

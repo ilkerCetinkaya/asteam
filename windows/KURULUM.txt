@@ -1,0 +1,29 @@
+RENK ÖLÇÜM BULUT KÖPRÜSÜ — WINDOWS KURULUMU
+==========================================
+Bu klasörü örn. C:\RenkOlcum altına kopyalayın. Python kurmanız GEREKMEZ.
+
+1) Bulut ayarı (bir kez):
+   renkolcum.exe ayar --url https://xxxx.supabase.co --anahtar <anon-key> --cihaz-seri LAB1-SPEKTRO
+
+2) Bu bilgisayarın bulut kullanıcısıyla giriş (bir kez, şifre sorulur):
+   renkolcum.exe giris --email lab1@firma.com
+
+3) Uygulamanızın .mdb dosyasını inceleyip eşleme üretin:
+   renkolcum.exe mdb-kesfet "C:\UygulamaVeri\olcumler.mdb" --yaz esleme.json --kaynak LAB1
+   -> Ekrana tablolar, kolonlar ve önerilen eşleme yazılır. esleme.json'u kontrol edin.
+
+4) Deneme (bir kez tara, gönder, çık):
+   renkolcum.exe mdb-izle "C:\UygulamaVeri" --esleme esleme.json --tek-sefer
+
+5) Sürekli çalışma (Windows açılışında arka planda başlar):
+   PowerShell'de:  .\kur.ps1 -Klasor "C:\UygulamaVeri" -Esleme "C:\RenkOlcum\esleme.json"
+   Kaldırmak için: .\kur.ps1 -Kaldir
+
+Günlük (log): %USERPROFILE%\.renkolcum\kopru.log
+Bekleyen kayıtlar: renkolcum.exe durum
+
+NOTLAR
+- Köprü .mdb dosyasına ASLA yazmaz; geçici kopyasını okur. Uygulamanız etkilenmez.
+- .mdb şifreliyse: "Microsoft Access Database Engine 2016 Redistributable" kurun ve
+  --okuyucu odbc --sifre <şifre> kullanın (sürücü ile köprünün 32/64 bit olması aynı olmalı).
+- İnternet kesilirse kayıtlar bilgisayarda bekler, bağlantı gelince otomatik gönderilir.

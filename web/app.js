@@ -113,13 +113,13 @@
     const term = $("#m-search").value.toLowerCase(), f = $("#m-filter").value;
     const rows = state.measurements.filter((m) =>
       (!f || m.pass_fail === f) &&
-      (!term || [m.sample_name, m.standard_name, m.measured_by_name, m.instrument_serial].join(" ").toLowerCase().includes(term)));
+      (!term || [m.sample_name, m.standard_name, m.measured_by_name, m.operator_name, m.instrument_serial].join(" ").toLowerCase().includes(term)));
     $("#m-table tbody").innerHTML = rows.map((m) => `<tr data-id="${m.id}" class="${state.selected === m.id ? "sel" : ""}">
       <td>${fmtDate(m.measured_at)}</td><td>${sw(m)}</td><td>${esc(m.sample_name)}</td>
       <td class="num">${fmt(m.l_star)}</td><td class="num">${fmt(m.a_star)}</td><td class="num">${fmt(m.b_star)}</td>
       <td class="num">${fmt(m.delta_e2000)}</td>
       <td>${m.pass_fail ? `<span class="badge ${m.pass_fail === "GEÇTİ" ? "ok" : "bad"}">${m.pass_fail}</span>` : ""}</td>
-      <td>${esc(m.measured_by_name)}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">Kayıt yok</td></tr>`;
+      <td>${esc(m.operator_name || m.measured_by_name)}</td></tr>`).join("") || `<tr><td colspan="9" class="muted">Kayıt yok</td></tr>`;
     renderDetail();
   }
 
@@ -138,7 +138,9 @@
         <dt>L* a* b*</dt><dd>${fmt(m.l_star)} / ${fmt(m.a_star)} / ${fmt(m.b_star)}</dd>
         ${st ? `<dt>ΔE2000</dt><dd>${fmt(m.delta_e2000)} (tol. ${fmt(st.tolerance_de, 1)}) <span class="badge ${m.pass_fail === "GEÇTİ" ? "ok" : "bad"}">${m.pass_fail}</span></dd>` : ""}
         <dt>Cihaz</dt><dd>${esc(m.instrument_model)} · ${esc(m.instrument_serial)}</dd>
-        <dt>Ölçen</dt><dd>${esc(m.measured_by_name)}</dd>
+        ${m.operator_name ? `<dt>Operatör</dt><dd>${esc(m.operator_name)}</dd>` : ""}
+        <dt>Gönderen</dt><dd>${esc(m.measured_by_name)}</dd>
+        ${m.source_ref ? `<dt>Kaynak</dt><dd class="small">${esc(m.source_ref)}</dd>` : ""}
         <dt>Tarih</dt><dd>${fmtDate(m.measured_at)}</dd>
         ${recs.map((r) => `<dt>Reçete</dt><dd><div class="comp">${r.components.map((c) => `<span>${esc(c.colorant_code)} %${fmt(c.amount_pct, 3)}</span>`).join("")}</div></dd>`).join("")}
       </dl>`;

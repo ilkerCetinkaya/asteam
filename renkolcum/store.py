@@ -63,8 +63,10 @@ class LocalStore:
         return [dict(r) | {"payload": json.loads(r["payload"])} for r in rows]
 
     def get(self, client_or_cloud_id: str) -> dict | None:
-        r = self.db.execute("select * from outbox where client_uuid = ? or cloud_id = ? or client_uuid like ?",
-                            (client_or_cloud_id, client_or_cloud_id, client_or_cloud_id + "%")).fetchone()
+        r = self.db.execute(
+            "select * from outbox where (client_uuid = ? or cloud_id = ? or client_uuid like ?) and kind <> 'measurement_update'"
+            " order by client_uuid = ? desc limit 1",
+            (client_or_cloud_id, client_or_cloud_id, client_or_cloud_id + "%", client_or_cloud_id)).fetchone()
         return dict(r) | {"payload": json.loads(r["payload"])} if r else None
 
     def cache_put(self, kind: str, rows: list[dict]) -> None:

@@ -100,10 +100,21 @@ class RenkOlcumService:
         res = {"gonderilen": 0, "hata": 0, "bekleyen": len(self.store.pending())}
         if not self.cloud_ready():
             return res
-        for kind, table in (("measurement", "measurements"), ("recipe", "recipes")):
+        for kind, table in (("measurement", "measurements"), ("measurement_update", "measurements"),
+                            ("recipe", "recipes")):
             for item in self.store.pending(kind):
                 body = dict(item["payload"])
                 try:
+                    if kind == "measurement_update":
+                        m = self.store.get(body["client_uuid"])
+                        if not m or not m["synced"]:
+                            continue  # önce kaydın kendisi gitmeli
+                        rows = self.cloud.update(table, {"client_uuid": body["client_uuid"]}, body["values"])
+                        if not rows:
+                            raise CloudError("Güncellenecek kayıt bulunamadı veya yetki yok")
+                        self.store.mark_synced(item["client_uuid"], rows[0]["id"])
+                        res["gonderilen"] += 1
+                        continue
                     if kind == "recipe":
                         mcu = body.pop("measurement_client_uuid", None)
                         if mcu:

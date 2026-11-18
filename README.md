@@ -32,6 +32,68 @@ flowchart LR
 
 > Not: Supabase ücretsiz planında proje 7 gün hiç kullanılmazsa duraklatılır; Dashboard'dan tek tıkla tekrar açılır. Ücretsiz planda organizasyon başına en fazla 2 aktif proje vardır.
 
+## Mevcut masaüstü uygulamasını buluta bağlama (.mdb köprüsü)
+
+Kaynak koduna erişilemeyen hazır bir Windows uygulaması için **uygulamaya dokunmadan** çalışan yol budur. Uygulama ölçümü yaptığında `.mdb` (Access) dosyasına yazar; köprü bu dosyayı izler ve yeni/değişen kayıtları buluta gönderir.
+
+```mermaid
+flowchart LR
+  S[Spektrofotometre] --> A[Mevcut uygulama<br/>değişiklik yok]
+  A -->|yazar| M[(.mdb dosyaları)]
+  M -->|kopyasını okur<br/>asla yazmaz| K[renkolcum-kopru.exe<br/>arka plan servisi]
+  K --> Q[(yerel kuyruk)]
+  Q -->|HTTPS| C[(Supabase)]
+  C --> W[Web portalı]
+```
+
+**Nasıl çalışır**
+1. Klasördeki `*.mdb` dosyaları birkaç saniyede bir kontrol edilir (değişiklik tarihi + boyut).
+2. Değişen dosyanın yazımı bitene kadar beklenir (`--bekle`, varsayılan 3 sn), sonra **geçici bir kopyası** okunur. Uygulamanın açık tuttuğu dosya kilitlenmez, değiştirilmez.
+3. `esleme.json` hangi tablonun/kolonun ne olduğunu söyler. `mdb-kesfet` bunu otomatik önerir.
+4. Her satıra dosya adı + tablo + anahtar kolondan **sabit bir kimlik** üretilir: aynı satır asla iki kez gönderilmez (bilgisayar yeniden kurulsa bile).
+5. Satır sonradan değişirse (ör. uygulama analiz sonucunu sonradan yazdıysa) buluttaki kayıt **güncellenir**.
+6. Uygulamanın kendi hesapladığı L\*a\*b\* / ΔE değerleri kullanılır; yoksa spektrumdan hesaplanır. Eşlenmeyen tüm kolonlar `meta.ham` içinde saklanır, veri kaybolmaz.
+7. İnternet yoksa kayıtlar bilgisayarda bekler.
+
+Desteklenen yapılar: tek dosyada biriken ölçümler veya **her ölçüm için ayrı .mdb dosyası**. Spektrum üç şekilde olabilir:
+
+| `spektrum.tip` | .mdb'deki yapı | Örnek |
+|---|---|---|
+| `genis` | Her dalga boyu bir kolon | `R360, R370, … R740` |
+| `uzun` | Ayrı tabloda satır satır | `SPEKTRUM(OLCUM_NO, DALGA_BOYU, YANSIMA)` |
+| `metin` | Tek kolonda ayraçlı değerler | `"12.3;11.9;…"` + `baslangic`, `adim` |
+
+Değerler 0–1 arasındaysa `olcek: 100`; 360–740 dışı aralıklar (ör. 400–700) otomatik olarak 360–740 / 10 nm ızgarasına çevrilir.
+
+**Örnek `esleme.json`**
+```json
+{
+  "tablo": "OLCUMLER",
+  "anahtar": ["OLCUM_NO"],
+  "alanlar": {
+    "sample_name": "NUMUNE_ADI", "measured_at": "TARIH", "operator_name": "OPERATOR",
+    "l_star": "L_DEG", "a_star": "A_DEG", "b_star": "B_DEG",
+    "delta_e2000": "DE2000", "pass_fail": "SONUC", "standard_name": "STANDART"
+  },
+  "spektrum": {"tip": "genis", "kolonlar": {"360": "R360", "370": "R370", "...": "...", "740": "R740"}},
+  "olcek": 1.0,
+  "saat_dilimi": "Europe/Istanbul",
+  "kaynak": "LAB1"
+}
+```
+
+**Windows kurulumu (Python gerekmez)**: `.github/workflows/windows-exe.yml` her push'ta `renkolcum.exe` (komut satırı) ve `renkolcum-kopru.exe` (pencere açmayan servis) dosyalarını ücretsiz GitHub Actions üzerinde derler; Actions → *RenkOlcum-Windows* artifact'ından indirilir. Adımlar `windows/KURULUM.txt` içinde:
+
+```powershell
+renkolcum.exe ayar --url https://xxxx.supabase.co --anahtar <anon-key>
+renkolcum.exe giris --email lab1@firma.com
+renkolcum.exe mdb-kesfet "C:\UygulamaVeri\olcumler.mdb" --yaz esleme.json --kaynak LAB1
+renkolcum.exe mdb-izle "C:\UygulamaVeri" --esleme esleme.json --tek-sefer    # deneme
+.\kur.ps1 -Klasor "C:\UygulamaVeri" -Esleme "C:\RenkOlcum\esleme.json"       # açılışta otomatik başlat
+```
+
+Okuyucular: varsayılan saf Python okuyucu (sürücü gerektirmez). `.mdb` **şifreliyse** *Microsoft Access Database Engine* kurulup `--okuyucu odbc --sifre ...` kullanılır.
+
 ## Proje yapısı
 
 ```
@@ -42,14 +104,17 @@ renkolcum/            Renk Ölçüm Sistemi (Python paketi, `renkolcum` komutu)
   recipe.py           Reçete hesaplama (1-3 boyarmadde, ΔE2000'e göre en iyi)
   cloud.py            Supabase istemcisi (Auth + REST)
   store.py            Yerel SQLite: çevrimdışı kuyruk + önbellek
+  mdb_bridge.py       Mevcut uygulamanın .mdb dosyalarını buluta taşıyan köprü
   service.py, cli.py  İş mantığı ve komut satırı
 supabase/
   migrations/         Veritabanı şeması + RLS politikaları + 10 kullanıcı limiti
   seed.sql            Boyarmaddeler ve örnek renk standartları
   tests/              Yerel PostgreSQL üzerinde RLS testleri
+windows/              Windows exe girişleri, kur.ps1, KURULUM.txt
 web/                  Web portalı (statik HTML/JS, demo modu dahil)
 scripts/              Kullanıcı oluşturma, seed / demo veri üreticileri
 tests/                pytest testleri (uçtan uca bulut senkronu dahil)
+  mdb/                Test .mdb dosyaları (Jet4) ve üretici (Java + Jackcess)
 ```
 
 ## Veritabanı
@@ -146,12 +211,14 @@ nm,R%
 | `listele [--bulut]` | Yerel / ortak ölçümler |
 | `recete ID\|son` | Reçete hesapla (`--standarda-gore`, `--kaydetme`) |
 | `standartlar`, `standart-ekle` | Renk standartları |
+| `mdb-kesfet DOSYA` | Uygulamanın .mdb yapısını incele, `esleme.json` öner |
+| `mdb-izle KLASOR` | .mdb köprüsü: yeni/değişen ölçümleri buluta gönder |
 
 ## Testler
 
 ```bash
-pip install -e ".[test]" "psycopg[binary]"
-pytest -q                          # 32 test: kolorimetri, reçete, RLS, uçtan uca senkron
+pip install -e ".[test,mdb]" "psycopg[binary]"
+pytest -q                          # 38 test: kolorimetri, reçete, RLS, uçtan uca senkron, .mdb köprüsü
 bash supabase/tests/run_local.sh   # SQL şeması + RLS senaryoları (yerel PostgreSQL gerekir)
 ```
 
