@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Renk Ölçüm Bulutu</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='5' cy='6' r='4' fill='%23e5484d'/><circle cx='11' cy='6' r='4' fill='%233e63dd' fill-opacity='.85'/><circle cx='8' cy='11' r='4' fill='%2330a46c' fill-opacity='.85'/></svg>">
+</head>
+<body>
+  <!-- Giriş ekranı -->
+  <main id="login-view" class="login" hidden>
+    <form id="login-form" class="card login-card">
+      <div class="brand"><span class="dots"><i></i><i></i><i></i></span> Renk Ölçüm Bulutu</div>
+      <p class="muted">Reçete ve ölçüm veritabanına erişmek için giriş yapın.</p>
+      <label>E-posta <input id="login-email" type="email" autocomplete="username" required></label>
+      <label>Şifre <input id="login-password" type="password" autocomplete="current-password" required></label>
+      <button type="submit" class="primary">Giriş yap</button>
+      <p id="login-error" class="error" role="alert"></p>
+      <p id="demo-hint" class="muted small" hidden>Demo modu: herhangi bir e-posta/şifre ile girebilirsiniz.</p>
+    </form>
+  </main>
+
+  <!-- Uygulama -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="dots"><i></i><i></i><i></i></span> <span id="company">Renk Ölçüm Bulutu</span>
+        <span id="demo-badge" class="badge warn" hidden>DEMO</span></div>
+      <nav class="tabs" role="tablist">
+        <button data-tab="measurements" class="active">Ölçümler</button>
+        <button data-tab="standards">Standartlar</button>
+        <button data-tab="recipes">Reçeteler</button>
+        <button data-tab="users">Kullanıcılar</button>
+      </nav>
+      <div class="user">
+        <span id="live" class="live" title="Gerçek zamanlı bağlantı">●</span>
+        <span id="user-name"></span> <span id="user-role" class="badge"></span>
+        <button id="pw-btn" class="ghost">Şifre</button>
+        <button id="logout-btn" class="ghost">Çıkış</button>
+      </div>
+    </header>
+
+    <section id="tab-measurements" class="tab">
+      <div class="stats" id="stats"></div>
+      <div class="split">
+        <div class="card table-card">
+          <div class="toolbar">
+            <input id="m-search" type="search" placeholder="Numune, standart veya kullanıcı ara…">
+            <select id="m-filter"><option value="">Tümü</option><option>GEÇTİ</option><option>KALDI</option></select>
+          </div>
+          <div class="scroll"><table id="m-table"><thead><tr>
+            <th>Tarih</th><th></th><th>Numune</th><th class="num">L*</th><th class="num">a*</th><th class="num">b*</th>
+            <th class="num">ΔE00</th><th>Sonuç</th><th>Kullanıcı</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <aside class="card detail" id="m-detail"><p class="muted">Ayrıntı için bir ölçüm seçin.</p></aside>
+      </div>
+    </section>
+
+    <section id="tab-standards" class="tab" hidden>
+      <div class="card"><div class="scroll"><table id="s-table"><thead><tr>
+        <th></th><th>Standart</th><th>Müşteri</th><th class="num">L*</th><th class="num">a*</th><th class="num">b*</th>
+        <th class="num">Tolerans ΔE</th><th class="num">Ölçüm</th><th class="num">Geçme %</th></tr></thead><tbody></tbody></table></div></div>
+    </section>
+
+    <section id="tab-recipes" class="tab" hidden>
+      <div class="card"><div class="scroll"><table id="r-table"><thead><tr>
+        <th>Tarih</th><th>Reçete</th><th>Standart</th><th>Bileşenler</th><th class="num">Tahmini ΔE</th>
+        <th>Durum</th><th>Oluşturan</th><th></th></tr></thead><tbody></tbody></table></div></div>
+    </section>
+
+    <section id="tab-users" class="tab" hidden>
+      <div class="card">
+        <h3>Kullanıcılar <span id="seat" class="badge"></span></h3>
+        <p class="muted small">Yeni kullanıcılar Supabase Dashboard → Authentication → Users → "Add user" ile veya
+          <code>scripts/create_users.py</code> ile eklenir. Sistem en fazla <b id="seat-max">10</b> kullanıcıya izin verir.</p>
+        <div class="scroll"><table id="u-table"><thead><tr><th>Ad</th><th>E-posta</th><th>Rol</th><th>Kayıt</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+  </div>
+
+  <dialog id="pw-dialog">
+    <form method="dialog" id="pw-form" class="stack">
+      <h3>Şifre değiştir</h3>
+      <label>Yeni şifre <input id="pw-new" type="password" minlength="8" required autocomplete="new-password"></label>
+      <div class="row"><button value="cancel" formnovalidate class="ghost">Vazgeç</button><button class="primary" value="ok">Kaydet</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="demo-data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

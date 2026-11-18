@@ -1,0 +1,5 @@
+email,full_name,role,password
+admin@firma.com,Ayşe Yılmaz,admin,
+lab1@firma.com,Mehmet Kaya,operator,
+lab2@firma.com,Zeynep Demir,operator,
+kalite@firma.com,Can Öztürk,viewer,
