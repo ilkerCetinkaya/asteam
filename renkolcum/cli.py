@@ -415,6 +415,15 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--tek-sefer", action="store_true"); p.add_argument("--sessiz", action="store_true")
     p.set_defaults(fn=cmd_mdb_izle)
 
+    # Windows'ta çıktı dosyaya/boruya yönlendirildiğinde (cp1252/cp857) Türkçe karakter ve
+    # simgeler programı çökertmesin: önce UTF-8 dene, olmazsa karakteri değiştir.
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
     a = ap.parse_args(argv)
     a.fn(a)
 

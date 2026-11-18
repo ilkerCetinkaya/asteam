@@ -18,14 +18,22 @@ jobs:
         run: pytest -q tests/test_colorimetry.py tests/test_spectro_recipe.py tests/test_mdb_bridge.py -k "discover or extract or fraction"
       - name: Derle
         run: |
-          pyinstaller --onefile --name renkolcum --collect-all access_parser windows/renkolcum_main.py
-          pyinstaller --onefile --noconsole --name renkolcum-kopru --collect-all access_parser windows/kopru_main.py
+          $ortak = @("--onefile", "--paths", ".", "--collect-submodules", "renkolcum", "--collect-all", "access_parser", "--collect-data", "tzdata")
+          pyinstaller @ortak --name renkolcum windows/renkolcum_main.py
+          pyinstaller @ortak --noconsole --name renkolcum-kopru windows/kopru_main.py
       - name: Exe duman testi
         shell: pwsh
+        env:
+          RENKOLCUM_HOME: ${{ runner.temp }}\renkolcum-test
         run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $ErrorActionPreference = "Stop"
           .\dist\renkolcum.exe --version
           .\dist\renkolcum.exe mdb-kesfet tests\mdb\genis_v1.mdb --yaz dist\esleme.ornek.json --okuyucu parser
           if (-not (Test-Path dist\esleme.ornek.json)) { throw "eşleme üretilemedi" }
+          .\dist\renkolcum.exe mdb-izle tests\mdb --esleme dist\esleme.ornek.json --desen genis_v1.mdb --tek-sefer
+          .\dist\renkolcum.exe durum | Tee-Object -Variable durum
+          if (-not ($durum -match "Bekleyen\s+:\s+2")) { throw "köprü 2 ölçümü kuyruğa almadı" }
       - name: Paketle
         shell: pwsh
         run: Copy-Item windows\kur.ps1, windows\KURULUM.txt dist\
